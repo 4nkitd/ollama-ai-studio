@@ -2,7 +2,7 @@
 import React from 'react';
 import { Message } from '../types';
 import ResponseDisplay from './ResponseDisplay';
-import { User, Bot, Cpu, BarChart3 } from 'lucide-react';
+import { User, Bot, Cpu, BarChart3, Brain } from 'lucide-react'; // Added Brain for thinking
 
 interface ChatMessageProps {
   message: Message;
@@ -51,10 +51,17 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
             </span>
           )}
           {message.isLoading && message.role === 'assistant' && (
-             <span className="flex items-center" title="Generating response...">
-              <Cpu size={12} className="mr-1 animate-pulse" />
-              Processing...
-            </span>
+             message.isThinking ? (
+                <span className="flex items-center text-yellow-400" title="Assistant is thinking...">
+                  <Brain size={12} className="mr-1 animate-pulse" /> 
+                  Thinking...
+                </span>
+             ) : (
+                <span className="flex items-center" title="Generating response...">
+                  <Cpu size={12} className="mr-1 animate-pulse" />
+                  Processing...
+                </span>
+             )
           )}
           <span>{formatTimestamp(new Date(message.timestamp))}</span>
         </div>

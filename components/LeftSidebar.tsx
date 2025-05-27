@@ -33,7 +33,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
       <button
         onClick={onToggle}
         title={isOpen ? "Collapse Sidebar" : "Expand Sidebar"}
-        className={`absolute top-3 text-gray-400 hover:text-sky-400 transition-colors z-10
+        className={`absolute bottom-3 text-gray-400 hover:text-sky-400 transition-colors z-10
                     ${isOpen ? 'right-3' : 'left-1/2 -translate-x-1/2'}`}
       >
         {isOpen ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}

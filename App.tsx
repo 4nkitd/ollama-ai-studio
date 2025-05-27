@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { 
   Message, 
@@ -161,6 +162,7 @@ const App: React.FC = () => {
       if (!currentConversationId && convos.length === 0) { 
         handleNewChat(); 
       } else if (!currentConversationId && convos.length > 0) {
+        // If no active chat, default to new chat state, even if old chats exist
         handleNewChat();
       }
     }
@@ -186,11 +188,11 @@ const App: React.FC = () => {
             selectedModel,
             parameters,
           }).then(() => {
-             if(isMounted.current) loadConversationsFromDb();
+             if(isMounted.current) loadConversationsFromDb(); // Refresh list to show updated timestamp potentially
           }).catch(console.error);
       }
     }
-  }, [activeSystemPrompt, selectedModel, parameters, currentConversationId, conversationsList, loadConversationsFromDb]); // Added loadConversationsFromDb to deps
+  }, [activeSystemPrompt, selectedModel, parameters, currentConversationId, conversationsList, loadConversationsFromDb]);
 
   const simulateUserMessageTokens = (text: string): number => {
     return Math.round(text.split(/\s+/).length * 1.3); 
@@ -259,11 +261,12 @@ const App: React.FC = () => {
         total: simulateUserMessageTokens(userInput) + simulateUserMessageTokens(activeSystemPrompt),
       }
     };
-    const { isLoading: _removedIsLoadingUser, ...userMessageForDbData } = userMessageForUi;
+    const { isLoading: _removedIsLoadingUser, isThinking: _removedIsThinkingUser, ...userMessageForDbData } = userMessageForUi;
     const userMessageForDb: StoredMessage = {
-        ...userMessageForDbData,
+        ...(userMessageForDbData as Omit<Message, 'isLoading' | 'isThinking' | 'model'>), // Cast to ensure types match
         conversationId: activeConversationId,
     };
+
     await addMessage(userMessageForDb);
     if (!isMounted.current) return;
     
@@ -278,13 +281,17 @@ const App: React.FC = () => {
       model: selectedModel,
       timestamp: new Date(timestamp.getTime() + 1),
       isLoading: true,
+      isThinking: false, // Initialize isThinking
       tokens: { prompt: 0, completion: 0, total: 0 }
     };
-    const { isLoading: _removedIsLoadingAssistant, ...placeholderDataForDb } = assistantMessagePlaceholder;
+    // Prepare for DB: remove transient UI fields
+    const { isLoading: _removedIsLoadingAssistant, isThinking: _removedIsThinkingAssistant, ...placeholderDataForDb } = assistantMessagePlaceholder;
     const assistantMessagePlaceholderForDb: StoredMessage = {
-      ...placeholderDataForDb,
+      ...(placeholderDataForDb as Omit<Message, 'isLoading' | 'isThinking' | 'model'>), // Cast for DB
+      model: selectedModel, // Add model explicitly for DB
       conversationId: activeConversationId,
     };
+
     await addMessage(assistantMessagePlaceholderForDb);
     if (!isMounted.current) return;
     setMessages(prev => [...prev, assistantMessagePlaceholder]);
@@ -311,6 +318,11 @@ const App: React.FC = () => {
       },
     };
 
+    // For processing <think> tags
+    let currentVisibleContent = ""; 
+    let inThinkBlock = false;
+    let finalTokenData = { prompt: 0, completion: 0, total: 0 };
+
     try {
       const response = await fetch(`${ollamaUrl}/api/chat`, {
         method: 'POST',
@@ -328,11 +340,9 @@ const App: React.FC = () => {
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let accumulatedContent = "";
-      let finalTokenData = { prompt: 0, completion: 0, total: 0 };
-
+      
       while (true) {
-        if (!isMounted.current || abortControllerRef.current?.signal.aborted) { if(!reader.closed) reader.cancel(); break; }
+        if (!isMounted.current || abortControllerRef.current?.signal.aborted) { if(!reader.closed) reader.cancel("Component unmounted or aborted").catch(()=>{}); break; }
         const { done, value } = await reader.read();
         if (done) break;
 
@@ -340,16 +350,63 @@ const App: React.FC = () => {
         const jsonResponses = chunkText.split('\n').filter(line => line.trim() !== '');
 
         for (const jsonResponse of jsonResponses) {
-          if (!isMounted.current || abortControllerRef.current?.signal.aborted) { if(!reader.closed) reader.cancel(); break; }
+          if (!isMounted.current || abortControllerRef.current?.signal.aborted) { if(!reader.closed) reader.cancel("Component unmounted or aborted mid-chunk").catch(()=>{}); break; }
           try {
             const streamPart = JSON.parse(jsonResponse) as OllamaStreamChatResponse;
             
             if (streamPart.message?.content) {
-              accumulatedContent += streamPart.message.content;
+              let chunkContent = streamPart.message.content;
+              let visibleChunkSegment = ""; 
+
+              while (chunkContent.length > 0) {
+                  if (inThinkBlock) {
+                      const thinkEndIndex = chunkContent.indexOf("</think>");
+                      if (thinkEndIndex !== -1) {
+                          chunkContent = chunkContent.substring(thinkEndIndex + "</think>".length);
+                          inThinkBlock = false;
+                          if (isMounted.current) {
+                              setMessages(prevMessages =>
+                                  prevMessages.map(msg =>
+                                      msg.id === assistantMessageId ? { ...msg, isThinking: false } : msg
+                                  )
+                              );
+                          }
+                      } else {
+                          chunkContent = ""; 
+                      }
+                  } else { // Not in a think block
+                      const thinkStartIndex = chunkContent.indexOf("<think>");
+                      if (thinkStartIndex !== -1) {
+                          visibleChunkSegment += chunkContent.substring(0, thinkStartIndex);
+                          chunkContent = chunkContent.substring(thinkStartIndex + "<think>".length);
+                          inThinkBlock = true;
+                          if (isMounted.current) {
+                              setMessages(prevMessages =>
+                                  prevMessages.map(msg =>
+                                      msg.id === assistantMessageId ? { ...msg, isThinking: true } : msg
+                                  )
+                              );
+                          }
+                      } else {
+                          visibleChunkSegment += chunkContent;
+                          chunkContent = ""; 
+                      }
+                  }
+              }
+              
+              if (visibleChunkSegment) {
+                  currentVisibleContent += visibleChunkSegment;
+              }
+
               if (isMounted.current) {
                 setMessages(prevMessages =>
                   prevMessages.map(msg =>
-                    msg.id === assistantMessageId ? { ...msg, content: accumulatedContent, isLoading: true } : msg
+                    msg.id === assistantMessageId ? { 
+                        ...msg, 
+                        content: currentVisibleContent,
+                        isLoading: true 
+                        // isThinking is updated above
+                    } : msg
                   )
                 );
               }
@@ -361,12 +418,20 @@ const App: React.FC = () => {
                 completion: streamPart.eval_count || 0,
                 total: (streamPart.prompt_eval_count || simulateUserMessageTokens(activeSystemPrompt) + simulateUserMessageTokens(userInput)) + (streamPart.eval_count || 0),
               };
+              // Ensure isThinking is false on completion
+              if (isMounted.current) {
+                setMessages(prevMessages =>
+                    prevMessages.map(msg =>
+                        msg.id === assistantMessageId ? { ...msg, isThinking: false, isLoading: false } : msg
+                    )
+                );
+              }
             }
           } catch (e) {
             console.error("Error parsing stream chunk:", e, "Chunk:", jsonResponse);
           }
         }
-         if ((!isMounted.current || abortControllerRef.current?.signal.aborted) && !reader.closed) { reader.cancel(); break; }
+         if ((!isMounted.current || abortControllerRef.current?.signal.aborted) && !reader.closed) { reader.cancel("Component unmounted or aborted post-chunk").catch(()=>{}); break; }
       }
       
       if (!isMounted.current) return;
@@ -375,11 +440,11 @@ const App: React.FC = () => {
         setMessages(prevMessages =>
           prevMessages.map(msg =>
             msg.id === assistantMessageId
-              ? { ...msg, isLoading: false, content: accumulatedContent, tokens: finalTokenData }
+              ? { ...msg, isLoading: false, isThinking: false, content: currentVisibleContent, tokens: finalTokenData }
               : msg
           )
         );
-        await updateMessage(assistantMessageId, { content: accumulatedContent, tokens: finalTokenData, model: selectedModel });
+        await updateMessage(assistantMessageId, { content: currentVisibleContent, tokens: finalTokenData, model: selectedModel });
         if (activeConversationId) {
             await updateConversation(activeConversationId, { updatedAt: new Date() });
             if (isMounted.current) {
@@ -392,11 +457,11 @@ const App: React.FC = () => {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("Error sending message to Ollama:", errorMessage);
       
-      if (!abortControllerRef.current?.signal.aborted) {
+      if (!abortControllerRef.current?.signal.aborted || errorMessage !== "The user aborted a request.") {
         setMessages(prevMessages =>
             prevMessages.map(msg =>
             msg.id === assistantMessageId
-                ? { ...msg, isLoading: false, content: `Error: ${errorMessage.substring(0,200)}...`, tokens: {prompt:0, completion:0, total:0} }
+                ? { ...msg, isLoading: false, isThinking: false, content: `Error: ${errorMessage.substring(0,200)}...`, tokens: {prompt:0, completion:0, total:0} }
                 : msg
             )
         );
@@ -452,7 +517,7 @@ const App: React.FC = () => {
         setActiveSystemPrompt(convoDetails.systemPrompt);
         setSelectedModel(convoDetails.selectedModel);
         setParameters(convoDetails.parameters);
-        setMessages(convoMessages.map(m => ({...m, isLoading: false, timestamp: new Date(m.timestamp)} as Message)));
+        setMessages(convoMessages.map(m => ({...m, isLoading: false, isThinking: false, timestamp: new Date(m.timestamp)} as Message)));
         
         const matchingSavedPrompt = savedSystemPrompts.find(p => p.prompt === convoDetails.systemPrompt);
         setSelectedSystemPromptId(matchingSavedPrompt ? matchingSavedPrompt.id : null);
@@ -537,7 +602,7 @@ const App: React.FC = () => {
       abortControllerRef.current.abort("User cancelled generation.");
       setMessages(prev => prev.map(msg => {
         if (msg.isLoading && msg.role === 'assistant') {
-          return { ...msg, isLoading: false, content: (msg.content || "") + "\n\n[Generation stopped by user]" };
+          return { ...msg, isLoading: false, isThinking: false, content: (msg.content || "") + "\n\n[Generation stopped by user]" };
         }
         return msg;
       }));
@@ -602,6 +667,8 @@ const App: React.FC = () => {
         }
     } else { 
         setSelectedSystemPromptId(null);
+        // Optionally, revert to default or keep current custom text if desired.
+        // For now, it keeps the current text in activeSystemPrompt, allowing "Custom (unsaved)" state
     }
   };
   
@@ -610,7 +677,7 @@ const App: React.FC = () => {
     if (selectedSystemPromptId) {
         const currentlySelectedSavedPrompt = savedSystemPrompts.find(p => p.id === selectedSystemPromptId);
         if (currentlySelectedSavedPrompt && currentlySelectedSavedPrompt.prompt !== newPromptText) {
-            setSelectedSystemPromptId(null); 
+            setSelectedSystemPromptId(null); // Mark as custom if text changes from a saved prompt
         }
     }
   };
