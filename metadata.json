@@ -1,0 +1,5 @@
+{
+  "name": "Ollama AI Studio UI",
+  "description": "A user interface for interacting with Ollama models, mirroring features of AI Studio. Includes system prompt, token counting (simulated), response streaming (simulated), Markdown support, and syntax highlighting.",
+  "requestFramePermissions": []
+}
