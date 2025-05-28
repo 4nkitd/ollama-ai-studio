@@ -2,6 +2,12 @@
 
 Ollama AI Studio is a web-based user interface for interacting with Ollama models. It allows users to manage conversations, customize model parameters, and connect to a running Ollama instance.
 
+### Important Notice
+To resolve the CORS issue, set the following environment variable. Refer to the official logs for further details.
+```sh
+export OLLAMA_ORIGINS "https://*.github.io"
+```
+
 ## Image
 ![Ollama AI Studio Screenshot](./image.png)
 
