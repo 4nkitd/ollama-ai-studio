@@ -16,11 +16,23 @@ export class ChatDatabase extends Dexie {
     (this as Dexie).version(2).stores({
       conversations: 'id, title, createdAt, updatedAt, selectedModel',
       chatMessages: 'id, conversationId, timestamp, model',
-      systemPrompts: 'id, title, createdAt, updatedAt', // Indexed for sorting and retrieval
-    }).upgrade(tx => {
-      // Migration logic for version 2 if needed, though just adding a table is fine.
-      // Example: return tx.table("someOldTable").clear(); if restructuring.
-      // For adding systemPrompts, no specific upgrade actions on existing tables are needed.
+      systemPrompts: 'id, title, prompt, createdAt, updatedAt' // Added systemPrompts table
+    });
+    // Version 3: Add totalTokenCount to conversations table
+    (this as Dexie).version(3).stores({
+      conversations: 'id, title, createdAt, updatedAt, selectedModel, totalTokenCount', // Added totalTokenCount
+      chatMessages: 'id, conversationId, timestamp, model',
+      systemPrompts: 'id, title, prompt, createdAt, updatedAt'
+    }).upgrade(async tx => {
+      // If you need to migrate existing data for totalTokenCount, do it here.
+      // For new installs, it will just be part of the schema.
+      // Example: return tx.table('conversations').toCollection().modify(conv => conv.totalTokenCount = 0);
+      // For this upgrade, we will initialize totalTokenCount to 0 for existing conversations
+      await tx.table('conversations').toCollection().modify(conv => {
+        if (conv.totalTokenCount === undefined) {
+          conv.totalTokenCount = 0;
+        }
+      });
     });
   }
 }

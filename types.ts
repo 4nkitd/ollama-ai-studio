@@ -28,6 +28,7 @@ export interface Conversation {
   systemPrompt: string; // Stores the actual system prompt text used for this conversation
   selectedModel: string | null;
   parameters: OllamaParameters;
+  totalTokenCount?: number; // Added to store cumulative token count
 }
 
 export interface StoredMessage extends Omit<Message, 'isLoading' | 'model' | 'isThinking'> { // isThinking is transient

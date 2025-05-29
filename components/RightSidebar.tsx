@@ -8,21 +8,20 @@ interface RightSidebarProps {
   onToggle: () => void;
   activeSystemPromptText: string;
   onActiveSystemPromptTextChange: (prompt: string) => void;
-  
+
   selectedModel: string | null;
   setSelectedModel: (model: string | null) => void;
-  
+
   parameters: OllamaParameters;
   onParameterChange: <K extends keyof OllamaParameters>(param: K, value: OllamaParameters[K]) => void;
-  
-  isLoading: boolean; 
+
+  isLoading: boolean;
   onDownloadChat: () => void;
 
   ollamaUrl: string;
   onOllamaUrlChange: (newUrl: string) => void;
   fetchedOllamaModels: OllamaApiTag[];
-  ollamaConnectionError: string | null;
-  isFetchingModels: boolean; 
+  isFetchingModels: boolean;
   ollamaServerStatus: 'idle' | 'connecting' | 'connected' | 'error';
 
   savedSystemPrompts: SystemPromptRecord[];
@@ -31,12 +30,14 @@ interface RightSidebarProps {
   onUpdateSelectedSystemPrompt: (id: string, title: string, prompt: string) => Promise<boolean>;
   onDeleteSelectedSystemPrompt: (id: string) => void;
   onSelectSavedSystemPrompt: (promptId: string | null) => void;
+
+  currentConversationTokenCount?: number | null; // Added new prop
 }
 
-const AccordionSection: React.FC<{ 
-  title: string; 
-  icon: React.ElementType; 
-  children: React.ReactNode; 
+const AccordionSection: React.FC<{
+  title: string;
+  icon: React.ElementType;
+  children: React.ReactNode;
   defaultOpen?: boolean;
   isSidebarOpen: boolean;
 }> = ({ title, icon: Icon, children, defaultOpen = false, isSidebarOpen }) => {
@@ -115,13 +116,12 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   setSelectedModel,
   parameters,
   onParameterChange,
-  isLoading, 
+  isLoading,
   onDownloadChat,
   ollamaUrl,
   onOllamaUrlChange,
   fetchedOllamaModels,
-  ollamaConnectionError,
-  isFetchingModels, 
+  isFetchingModels,
   ollamaServerStatus,
   savedSystemPrompts,
   selectedSystemPromptId,
@@ -129,6 +129,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   onUpdateSelectedSystemPrompt,
   onDeleteSelectedSystemPrompt,
   onSelectSavedSystemPrompt,
+  currentConversationTokenCount, // Destructure new prop
 }) => {
   const [editableOllamaUrl, setEditableOllamaUrl] = useState(ollamaUrl);
   const [showPromptTitleModal, setShowPromptTitleModal] = useState<null | 'new' | 'update'>(null);
@@ -141,7 +142,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   const handleUrlSave = () => {
     onOllamaUrlChange(editableOllamaUrl);
   };
-  
+
   const handleSaveNewPromptClick = () => {
     setPromptTitleInput('');
     setShowPromptTitleModal('new');
@@ -157,41 +158,56 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
 
   const handlePromptTitleSubmit = async () => {
     if (!promptTitleInput.trim()) {
-        alert("Prompt title cannot be empty.");
-        return;
+      alert("Prompt title cannot be empty.");
+      return;
     }
     let success = false;
     if (showPromptTitleModal === 'new') {
-        success = await onSaveNewSystemPrompt(promptTitleInput, activeSystemPromptText);
+      success = await onSaveNewSystemPrompt(promptTitleInput, activeSystemPromptText);
     } else if (showPromptTitleModal === 'update' && selectedSystemPromptId) {
-        success = await onUpdateSelectedSystemPrompt(selectedSystemPromptId, promptTitleInput, activeSystemPromptText);
+      success = await onUpdateSelectedSystemPrompt(selectedSystemPromptId, promptTitleInput, activeSystemPromptText);
     }
     if (success) {
-        setShowPromptTitleModal(null);
-        setPromptTitleInput('');
+      setShowPromptTitleModal(null);
+      setPromptTitleInput('');
     }
   };
 
-  const isChatSettingsDisabled = isLoading; 
-  const isServerSectionDisabled = isFetchingModels; 
+  const isChatSettingsDisabled = isLoading;
+  const isServerSectionDisabled = isFetchingModels;
 
   const isCustomPrompt = selectedSystemPromptId === null && activeSystemPromptText !== DEFAULT_SYSTEM_PROMPT;
 
   return (
-    <div 
+    <div
       className={`bg-gray-850 flex flex-col border-l border-gray-700 shadow-lg overflow-y-auto transition-all duration-300 ease-in-out relative
                   ${isOpen ? 'w-80 md:w-96 lg:w-[400px]' : 'w-20 items-center'}`}
     >
-      <button
-        onClick={onToggle}
-        title={isOpen ? "Collapse Sidebar" : "Expand Sidebar"}
-        className={`absolute top-3 text-gray-400 hover:text-sky-400 transition-colors z-10
+
+      <div className={`flex items-center justify-between p-3 border-gray-700 ${isOpen ? 'w-full' : 'w-20'}`}>
+        <div>
+          <button
+            onClick={onToggle}
+            title={isOpen ? "Collapse Sidebar" : "Expand Sidebar"}
+            className={`absolute top-3 text-gray-400 hover:text-sky-400 transition-colors z-10
                     ${isOpen ? 'left-3' : 'left-1/2 -translate-x-1/2'}`}
-      >
-        {isOpen ? <PanelRightClose size={20} /> : <PanelRightOpen size={20} />}
-      </button>
-      
-      <div className={isOpen ? 'pt-12' : 'pt-12 w-full'}> {/* Add padding top to make space for toggle button */}
+          >
+            {isOpen ? <PanelRightClose size={20} /> : <PanelRightOpen size={20} />}
+          </button>
+        </div>
+        <div>
+
+          {isOpen && currentConversationTokenCount !== null && currentConversationTokenCount !== undefined && currentConversationTokenCount > 0 && (
+            <div className="pt-0">
+              <label className="block text-xs font-medium text-gray-300">Tokens Count:{currentConversationTokenCount ?? ""}</label>
+            </div>
+          )}
+        </div>
+      </div>
+
+
+
+      <div className={isOpen ? 'pt-4' : 'pt-5 w-full'}> {/* Add padding top to make space for toggle button */}
         <AccordionSection title="Ollama Server" icon={Server} defaultOpen={true} isSidebarOpen={isOpen}>
           {isOpen && (
             <>
@@ -215,7 +231,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                     title="Save URL and Fetch Models"
                     className="p-2 bg-sky-600 hover:bg-sky-700 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
                   >
-                    {isFetchingModels ? <Loader2 size={18} className="animate-spin"/> : <Save size={18} />}
+                    {isFetchingModels ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
                   </button>
                 </div>
               </div>
@@ -248,35 +264,35 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                     <option key={model.name} value={model.name}>{model.name}</option>
                   ))}
                   {selectedModel && !fetchedOllamaModels.some(m => m.name === selectedModel) && ollamaServerStatus === 'connected' && (
-                      <option key={selectedModel} value={selectedModel} disabled>
-                          {selectedModel} (unavailable)
-                      </option>
+                    <option key={selectedModel} value={selectedModel} disabled>
+                      {selectedModel} (unavailable)
+                    </option>
                   )}
                 </select>
               </div>
-              
-              <div className="space-y-2 pt-2">
-                 <label className="block text-xs font-medium text-gray-300">System Prompt</label>
-                  <select
-                      value={selectedSystemPromptId || (isCustomPrompt ? "custom" : "default")}
-                      onChange={(e) => {
-                          if (e.target.value === "custom" || e.target.value === "default") {
-                              onSelectSavedSystemPrompt(null); 
-                              if (e.target.value === "default") onActiveSystemPromptTextChange(DEFAULT_SYSTEM_PROMPT);
-                          } else {
-                              onSelectSavedSystemPrompt(e.target.value);
-                          }
-                      }}
-                      className="w-full p-2 bg-gray-700 border border-gray-600 rounded-md text-xs text-gray-200 focus:ring-sky-500 focus:border-sky-500 disabled:opacity-70"
-                      disabled={isChatSettingsDisabled}
-                  >
-                      <option value="default" disabled={activeSystemPromptText === DEFAULT_SYSTEM_PROMPT && !selectedSystemPromptId}>Default</option>
-                      {isCustomPrompt && !selectedSystemPromptId && <option value="custom" disabled>Custom (unsaved)</option>}
 
-                      {savedSystemPrompts.map(sp => (
-                          <option key={sp.id} value={sp.id}>{sp.title}</option>
-                      ))}
-                  </select>
+              <div className="space-y-2 pt-2">
+                <label className="block text-xs font-medium text-gray-300">System Prompt</label>
+                <select
+                  value={selectedSystemPromptId || (isCustomPrompt ? "custom" : "default")}
+                  onChange={(e) => {
+                    if (e.target.value === "custom" || e.target.value === "default") {
+                      onSelectSavedSystemPrompt(null);
+                      if (e.target.value === "default") onActiveSystemPromptTextChange(DEFAULT_SYSTEM_PROMPT);
+                    } else {
+                      onSelectSavedSystemPrompt(e.target.value);
+                    }
+                  }}
+                  className="w-full p-2 bg-gray-700 border border-gray-600 rounded-md text-xs text-gray-200 focus:ring-sky-500 focus:border-sky-500 disabled:opacity-70"
+                  disabled={isChatSettingsDisabled}
+                >
+                  <option value="default" disabled={activeSystemPromptText === DEFAULT_SYSTEM_PROMPT && !selectedSystemPromptId}>Default</option>
+                  {isCustomPrompt && !selectedSystemPromptId && <option value="custom" disabled>Custom (unsaved)</option>}
+
+                  {savedSystemPrompts.map(sp => (
+                    <option key={sp.id} value={sp.id}>{sp.title}</option>
+                  ))}
+                </select>
 
                 <textarea
                   id="system-prompt"
@@ -288,9 +304,9 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                   disabled={isChatSettingsDisabled}
                 />
                 <div className="flex flex-wrap gap-2 items-center">
-                   <button onClick={handleSaveNewPromptClick} disabled={isChatSettingsDisabled} title="Save as New Prompt" className="text-xs flex items-center p-1.5 bg-green-600 hover:bg-green-700 rounded disabled:opacity-50"><Save size={14} className="mr-1"/> Save New</button>
-                   <button onClick={handleUpdateSelectedPromptClick} disabled={isChatSettingsDisabled || !selectedSystemPromptId} title="Update Selected Prompt" className="text-xs flex items-center p-1.5 bg-sky-600 hover:bg-sky-700 rounded disabled:opacity-50"><Edit3 size={14} className="mr-1"/> Update Sel.</button>
-                   <button onClick={() => selectedSystemPromptId && window.confirm("Delete this saved prompt?") && onDeleteSelectedSystemPrompt(selectedSystemPromptId)} disabled={isChatSettingsDisabled || !selectedSystemPromptId} title="Delete Selected Prompt" className="text-xs flex items-center p-1.5 bg-red-600 hover:bg-red-700 rounded disabled:opacity-50"><Trash2 size={14} className="mr-1"/> Delete Sel.</button>
+                  <button onClick={handleSaveNewPromptClick} disabled={isChatSettingsDisabled} title="Save as New Prompt" className="text-xs flex items-center p-1.5 bg-green-600 hover:bg-green-700 rounded disabled:opacity-50"><Save size={14} className="mr-1" /> Save New</button>
+                  <button onClick={handleUpdateSelectedPromptClick} disabled={isChatSettingsDisabled || !selectedSystemPromptId} title="Update Selected Prompt" className="text-xs flex items-center p-1.5 bg-sky-600 hover:bg-sky-700 rounded disabled:opacity-50"><Edit3 size={14} className="mr-1" /> Update Sel.</button>
+                  <button onClick={() => selectedSystemPromptId && window.confirm("Delete this saved prompt?") && onDeleteSelectedSystemPrompt(selectedSystemPromptId)} disabled={isChatSettingsDisabled || !selectedSystemPromptId} title="Delete Selected Prompt" className="text-xs flex items-center p-1.5 bg-red-600 hover:bg-red-700 rounded disabled:opacity-50"><Trash2 size={14} className="mr-1" /> Delete Sel.</button>
                 </div>
               </div>
             </>
@@ -333,7 +349,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                   min={-1} step={1}
                   disabled={isChatSettingsDisabled}
                 />
-                 <p className="text-xs text-gray-400 mt-1">Set to -1 for model default, 0 for unlimited.</p>
+                <p className="text-xs text-gray-400 mt-1">Set to -1 for model default, 0 for unlimited.</p>
               </div>
             </>
           )}
@@ -368,8 +384,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
               autoFocus
             />
             <div className="flex justify-end space-x-3">
-              <button onClick={() => setShowPromptTitleModal(null)} className="px-4 py-2 text-sm rounded-md text-gray-300 hover:bg-gray-700 transition-colors"><X size={16} className="inline mr-1"/>Cancel</button>
-              <button onClick={handlePromptTitleSubmit} className="px-4 py-2 text-sm rounded-md bg-sky-600 hover:bg-sky-700 text-white transition-colors"><Check size={16} className="inline mr-1"/>Save</button>
+              <button onClick={() => setShowPromptTitleModal(null)} className="px-4 py-2 text-sm rounded-md text-gray-300 hover:bg-gray-700 transition-colors"><X size={16} className="inline mr-1" />Cancel</button>
+              <button onClick={handlePromptTitleSubmit} className="px-4 py-2 text-sm rounded-md bg-sky-600 hover:bg-sky-700 text-white transition-colors"><Check size={16} className="inline mr-1" />Save</button>
             </div>
           </div>
         </div>

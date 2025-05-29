@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { 
   Message, 
@@ -56,6 +55,7 @@ const App: React.FC = () => {
   
   const [conversationsList, setConversationsList] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [currentConversationTokenCount, setCurrentConversationTokenCount] = useState<number | null>(null);
 
   const [ollamaUrl, setOllamaUrl] = useState<string>(() => {
     return localStorage.getItem(LOCALSTORAGE_OLLAMA_URL_KEY) || DEFAULT_OLLAMA_URL;
@@ -165,6 +165,11 @@ const App: React.FC = () => {
         // If no active chat, default to new chat state, even if old chats exist
         handleNewChat();
       }
+      // Update token count if a conversation is loaded
+      if (currentConversationId) {
+        const currentConvo = convos.find(c => c.id === currentConversationId);
+        setCurrentConversationTokenCount(currentConvo?.totalTokenCount ?? 0);
+      }
     }
   };
   
@@ -230,6 +235,7 @@ const App: React.FC = () => {
         systemPrompt: activeSystemPrompt,
         selectedModel,
         parameters,
+        totalTokenCount: 0, // Initialize token count
       };
       await addConversation(newConversation);
       if (!isMounted.current) return;
@@ -248,6 +254,9 @@ const App: React.FC = () => {
         console.error("Failed to get active conversation ID");
         return;
     }
+
+    // Calculate initial token count for the new conversation or update existing
+    let conversationTokenCount = conversationsList.find(c => c.id === activeConversationId)?.totalTokenCount ?? 0;
 
     const userMessageId = uuidv4();
     const userMessageForUi: Message = {
@@ -426,6 +435,14 @@ const App: React.FC = () => {
                     )
                 );
               }
+              // Update conversation total token count
+              if (activeConversationId) {
+                const newTotalTokenCount = conversationTokenCount + finalTokenData.total;
+                await updateConversation(activeConversationId, { totalTokenCount: newTotalTokenCount });
+                setCurrentConversationTokenCount(newTotalTokenCount);
+                // Update in local list as well for immediate UI update if needed
+                setConversationsList(prev => prev.map(c => c.id === activeConversationId ? {...c, totalTokenCount: newTotalTokenCount, updatedAt: new Date()} : c).sort((a,b) => b.updatedAt.getTime() - a.updatedAt.getTime()));
+              }
             }
           } catch (e) {
             console.error("Error parsing stream chunk:", e, "Chunk:", jsonResponse);
@@ -446,9 +463,10 @@ const App: React.FC = () => {
         );
         await updateMessage(assistantMessageId, { content: currentVisibleContent, tokens: finalTokenData, model: selectedModel });
         if (activeConversationId) {
-            await updateConversation(activeConversationId, { updatedAt: new Date() });
+            // Token count is updated when streamPart.done is true, only update updatedAt here
+            await updateConversation(activeConversationId, { updatedAt: new Date() }); 
             if (isMounted.current) {
-                loadConversationsFromDb();
+                // loadConversationsFromDb(); // Already updated in streamPart.done
             }
         }
       }
@@ -486,6 +504,7 @@ const App: React.FC = () => {
       }
       setMessages([]);
       setCurrentConversationId(null);
+      setCurrentConversationTokenCount(0); // Reset token count for new chat
       setActiveSystemPrompt(DEFAULT_SYSTEM_PROMPT);
       setSelectedSystemPromptId(null); 
       setSelectedModel(fetchedOllamaModels[0]?.name ?? DEFAULT_MODEL_NAME);
@@ -521,6 +540,7 @@ const App: React.FC = () => {
         
         const matchingSavedPrompt = savedSystemPrompts.find(p => p.prompt === convoDetails.systemPrompt);
         setSelectedSystemPromptId(matchingSavedPrompt ? matchingSavedPrompt.id : null);
+        setCurrentConversationTokenCount(convoDetails.totalTokenCount ?? 0); // Load token count
 
       } else {
         setConversationsList(prev => prev.filter(c => c.id !== conversationToLoad.id));
@@ -717,7 +737,6 @@ const App: React.FC = () => {
         ollamaUrl={ollamaUrl}
         onOllamaUrlChange={handleOllamaUrlChange}
         fetchedOllamaModels={fetchedOllamaModels}
-        ollamaConnectionError={ollamaConnectionError}
         isFetchingModels={isFetchingModels}
         ollamaServerStatus={ollamaServerStatus}
         
@@ -727,6 +746,7 @@ const App: React.FC = () => {
         onUpdateSelectedSystemPrompt={handleUpdateSavedSystemPrompt}
         onDeleteSelectedSystemPrompt={handleDeleteSavedSystemPrompt}
         onSelectSavedSystemPrompt={handleSelectSavedSystemPrompt}
+        currentConversationTokenCount={currentConversationTokenCount} // Pass token count
       />
     </div>
   );

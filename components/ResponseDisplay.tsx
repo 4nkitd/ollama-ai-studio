@@ -47,7 +47,7 @@ const ResponseDisplay: React.FC<ResponseDisplayProps> = ({ content, isLoading })
   };
 
   return (
-    <div className="prose prose-sm prose-invert max-w-none break-words">
+    <div className="prose prose-sm prose-invert max-w-none break-words py-3 overflow-x-scroll">
       <ReactMarkdown
         children={displayContent}
         remarkPlugins={[remarkGfm]}
@@ -64,7 +64,7 @@ const ResponseDisplay: React.FC<ResponseDisplayProps> = ({ content, isLoading })
               <div className="relative group">
                 <button
                   onClick={() => handleCopy(codeString, instanceKey)}
-                  className="absolute mt-4 bottom-2 left-2 p-1.5 bg-gray-700 hover:bg-gray-600 rounded text-gray-300 hover:text-gray-100 opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100"
+                  className="absolute  mt-4 bottom-2 left-2 p-1.5 bg-gray-700 hover:bg-gray-600 rounded text-gray-300 hover:text-gray-100 opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100"
                   title={copiedStates[instanceKey] ? "Copied!" : "Copy code"}
                   aria-label={copiedStates[instanceKey] ? "Code copied to clipboard" : "Copy code to clipboard"}
                 >
