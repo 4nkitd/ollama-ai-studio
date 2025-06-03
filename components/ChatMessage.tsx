@@ -40,13 +40,15 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
         ) : (
           <>
             {/* Thinking indicator */}
-            {message.isThinking && (
+            {(message.isThinking || message.thinkingContent) && (
               <div 
                 className="flex items-center mb-2 p-2 bg-gray-600 rounded cursor-pointer hover:bg-gray-500 transition-colors"
                 onClick={() => setShowThinking(!showThinking)}
               >
-                <Brain size={16} className="mr-2 text-purple-400 animate-pulse" />
-                <span className="text-sm text-purple-300">Assistant is thinking...</span>
+                <Brain size={16} className={`mr-2 text-purple-400 ${message.isThinking ? 'animate-pulse' : ''}`} />
+                <span className="text-sm text-purple-300">
+                  {message.isThinking ? 'Assistant is thinking...' : 'View thinking process'}
+                </span>
                 {showThinking ? (
                   <ChevronUp size={16} className="ml-auto text-gray-400" />
                 ) : (
@@ -56,11 +58,19 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
             )}
 
             {/* Thinking content (expandable) */}
-            {showThinking && message.isThinking && (
+            {showThinking && (message.isThinking || message.thinkingContent) && (
               <div className="mb-2 p-2 bg-gray-800 rounded border-l-4 border-purple-400">
                 <div className="text-xs text-purple-300 mb-1">Thinking Process:</div>
-                <div className="text-sm text-gray-300 italic">
-                  The assistant is processing your request and considering the best response...
+                <div className="text-sm text-gray-300">
+                  {message.thinkingContent ? (
+                    <div className="whitespace-pre-wrap break-words font-mono">
+                      {message.thinkingContent}
+                    </div>
+                  ) : (
+                    <div className="italic">
+                      The assistant is processing your request and considering the best response...
+                    </div>
+                  )}
                 </div>
               </div>
             )}

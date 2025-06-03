@@ -16,6 +16,7 @@ export interface Message {
   timestamp: Date;
   isLoading?: boolean; // Transient state for UI
   isThinking?: boolean; // Indicates if the assistant is in a <think> block
+  thinkingContent?: string; // Content captured from <think> tags
 }
 
 export interface OllamaParameters {
@@ -51,7 +52,7 @@ export interface Conversation {
   totalTokenCount?: number; // Added to store cumulative token count
 }
 
-export interface StoredMessage extends Omit<Message, 'isLoading' | 'model' | 'isThinking'> { // isThinking is transient
+export interface StoredMessage extends Omit<Message, 'isLoading' | 'model' | 'isThinking'> { // isThinking is transient, thinkingContent is persisted
   conversationId: string;
   model?: string;
 }

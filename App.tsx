@@ -891,29 +891,40 @@ const App = (): JSX.Element => {
         for (const line of lines) {
           if (!isMounted.current || abortControllerRef.current?.signal.aborted) { if(reader && !reader.closed) reader.cancel("Component unmounted or aborted mid-chunk").catch(()=>{/* ignore */}); break; }
           
-          // Handle SSE format - lines start with "data: "
-          if (!line.startsWith('data: ')) continue;
+          let jsonData = '';
           
-          const jsonData = line.slice(6); // Remove "data: " prefix
-          
-          // Handle the [DONE] signal
-          if (jsonData === '[DONE]') {
-            // Stream is complete - finalize the message
-            if (isMounted.current) {
-              setMessages(prevMessages =>
-                prevMessages.map(msg =>
-                  msg.id === assistantMessageId ? { 
-                    ...msg, 
-                    isThinking: false, 
-                    isLoading: false,
-                    tokens: finalTokenData,
-                    thinkingContent: currentThinkingContent
-} : msg
-                )
-              );
+          // Handle different streaming formats
+          if (providerState.type === PROVIDERS.OLLAMA) {
+            // Ollama sends raw JSON lines
+            jsonData = line;
+          } else {
+            // OpenAI-compatible providers use SSE format with "data: " prefix
+            if (!line.startsWith('data: ')) continue;
+            
+            jsonData = line.slice(6); // Remove "data: " prefix
+            
+            // Handle the [DONE] signal for SSE format
+            if (jsonData === '[DONE]') {
+              // Stream is complete - finalize the message
+              if (isMounted.current) {
+                setMessages(prevMessages =>
+                  prevMessages.map(msg =>
+                    msg.id === assistantMessageId ? { 
+                      ...msg, 
+                      isThinking: false, 
+                      isLoading: false,
+                      tokens: finalTokenData,
+                      thinkingContent: currentThinkingContent
+                    } : msg
+                  )
+                );
+              }
+              break;
             }
-            break;
           }
+          
+          // Skip empty JSON data
+          if (!jsonData.trim()) continue;
           
           try {
             const streamPart = JSON.parse(jsonData);
@@ -1058,7 +1069,7 @@ const App = (): JSX.Element => {
         setMessages(prevMessages =>
           prevMessages.map(msg =>
             msg.id === assistantMessageId
-              ? { ...msg, isLoading: false, isThinking: false, content: currentVisibleContent, tokens: finalTokenData }
+              ? { ...msg, isLoading: false, tokens: finalTokenData, thinkingContent: currentThinkingContent }
               : msg
           )
         );
@@ -1080,7 +1091,7 @@ const App = (): JSX.Element => {
         setMessages(prevMessages =>
             prevMessages.map(msg =>
             msg.id === assistantMessageId
-                ? { ...msg, isLoading: false, isThinking: false, content: `Error: ${errorMessage.substring(0,200)}...`, tokens: {prompt:0, completion:0, total:0} }
+                ? { ...msg, isLoading: false, isThinking: false, content: `Error: ${errorMessage.substring(0,200)}...`, tokens: {prompt:0, completion:0, total:0}, thinkingContent: currentThinkingContent }
                 : msg
             )
         );
