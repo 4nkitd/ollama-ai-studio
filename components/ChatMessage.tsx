@@ -40,7 +40,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
         ) : (
           <>
             {/* Thinking indicator */}
-            {(message.isThinking || message.thinkingContent) && (
+            {(message.isThinking || (message.thinkingContent && message.thinkingContent.trim())) && (
               <div 
                 className="flex items-center mb-2 p-2 bg-gray-600 rounded cursor-pointer hover:bg-gray-500 transition-colors"
                 onClick={() => setShowThinking(!showThinking)}
@@ -58,11 +58,11 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
             )}
 
             {/* Thinking content (expandable) */}
-            {showThinking && (message.isThinking || message.thinkingContent) && (
+            {showThinking && (message.isThinking || (message.thinkingContent && message.thinkingContent.trim())) && (
               <div className="mb-2 p-2 bg-gray-800 rounded border-l-4 border-purple-400">
                 <div className="text-xs text-purple-300 mb-1">Thinking Process:</div>
                 <div className="text-sm text-gray-300">
-                  {message.thinkingContent ? (
+                  {message.thinkingContent && message.thinkingContent.trim() ? (
                     <div className="whitespace-pre-wrap break-words font-mono">
                       {message.thinkingContent}
                     </div>
@@ -72,6 +72,17 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* Debug indicator for thinking content */}
+            {process.env.NODE_ENV === 'development' && !isUser && (
+              <div className="mb-1 text-xs opacity-50">
+                <span className="bg-purple-900 text-purple-200 px-1 rounded">
+                  Debug: thinking={message.isThinking ? 'true' : 'false'} 
+                  content={message.thinkingContent ? `${message.thinkingContent.length}chars` : 'none'}
+                  visible={message.isThinking || (message.thinkingContent && message.thinkingContent.trim()) ? 'yes' : 'no'}
+                </span>
               </div>
             )}
 

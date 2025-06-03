@@ -34,6 +34,19 @@ export class ChatDatabase extends Dexie {
         }
       });
     });
+    // Version 4: Add thinkingContent to chatMessages table
+    (this as Dexie).version(4).stores({
+      conversations: 'id, title, createdAt, updatedAt, selectedModel, totalTokenCount',
+      chatMessages: 'id, conversationId, timestamp, model', // thinkingContent added to schema but not indexed
+      systemPrompts: 'id, title, prompt, createdAt, updatedAt'
+    }).upgrade(async tx => {
+      // Initialize thinkingContent for existing messages
+      await tx.table('chatMessages').toCollection().modify(msg => {
+        if (msg.thinkingContent === undefined) {
+          msg.thinkingContent = '';
+        }
+      });
+    });
   }
 }
 

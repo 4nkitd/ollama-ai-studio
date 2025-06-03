@@ -602,6 +602,7 @@ const App = (): JSX.Element => {
         // Load messages for this conversation
         const loadMessages = async () => {
           const msgs = await getMessagesForConversation(currentConversationId);
+          console.log('📥 Loaded messages with thinking content:', msgs.filter(m => m.thinkingContent).length, 'messages have thinking');
           if (isMounted.current) {
             setMessages(msgs);
           }
@@ -964,6 +965,7 @@ const App = (): JSX.Element => {
                       if (thinkEndIndex !== -1) {
                           // Capture the remaining thinking content before the closing tag
                           currentThinkingContent += chunkContent.substring(0, thinkEndIndex);
+                          console.log('🧠 Thinking content captured (end):', currentThinkingContent.length, 'chars');
                           chunkContent = chunkContent.substring(thinkEndIndex + "</think>".length);
                           inThinkBlock = false;
                           if (isMounted.current) {
@@ -980,6 +982,7 @@ const App = (): JSX.Element => {
                       } else {
                           // Still in thinking block, capture all content
                           currentThinkingContent += chunkContent;
+                          console.log('🧠 Thinking content captured (continuing):', currentThinkingContent.length, 'chars');
                           chunkContent = ""; 
                       }
                   } else { // Not in a think block
@@ -1035,6 +1038,7 @@ const App = (): JSX.Element => {
                 total: streamTotalTokens ?? (promptTokens + completionTokens),
               };
               // Ensure isThinking is false on completion
+              console.log('✅ Stream complete, finalizing with thinking content:', currentThinkingContent.length, 'chars');
               if (isMounted.current) {
                 setMessages(prevMessages =>
                     prevMessages.map(msg =>
@@ -1073,7 +1077,8 @@ const App = (): JSX.Element => {
               : msg
           )
         );
-        await updateMessage(assistantMessageId, { content: currentVisibleContent, tokens: finalTokenData, model: selectedModel });
+        console.log('💾 Saving message with thinking content:', currentThinkingContent.length, 'chars');
+        await updateMessage(assistantMessageId, { content: currentVisibleContent, tokens: finalTokenData, model: selectedModel, thinkingContent: currentThinkingContent });
         if (activeConversationId) {
             // Token count is updated when streamPart.done is true, only update updatedAt here
             await updateConversation(activeConversationId, { updatedAt: new Date() }); 
@@ -1095,7 +1100,7 @@ const App = (): JSX.Element => {
                 : msg
             )
         );
-        await updateMessage(assistantMessageId, { content: `Error: ${errorMessage.substring(0,200)}...` , model: selectedModel || undefined}); // Ensure model can be undefined if selectedModel is null
+        await updateMessage(assistantMessageId, { content: `Error: ${errorMessage.substring(0,200)}...` , model: selectedModel || undefined, thinkingContent: currentThinkingContent}); // Ensure model can be undefined if selectedModel is null
         if(isMounted.current && document.hidden === false && !abortControllerRef.current?.signal.aborted) { // Check if not aborted before alerting
           alert(`Failed to get response from ${PROVIDER_CONFIGS[providerState.type as keyof typeof PROVIDER_CONFIGS].name}: ${errorMessage}`);
         }
