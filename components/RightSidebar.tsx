@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { OllamaParameters, AIModel, SystemPromptRecord, ProviderType } from '../types';
 import { SlidersHorizontal, Settings2, FileDown, Server, AlertTriangle, CheckCircle, Loader2, Save, Trash2, Edit3, Check, X, ChevronDown, ChevronUp, PanelRightClose, PanelRightOpen } from 'lucide-react';
-import { DEFAULT_SYSTEM_PROMPT, PROVIDER_CONFIGS } from '../constants';
+import { DEFAULT_SYSTEM_PROMPT, PROVIDER_CONFIGS, PROVIDERS } from '../constants';
 
 interface RightSidebarProps {
   isOpen: boolean;
@@ -31,6 +31,7 @@ interface RightSidebarProps {
   customModels: AIModel[];
   onAddCustomModel: (modelId: string, modelName: string) => void;
   onRemoveCustomModel: (modelId: string) => void;
+  onTestConnection: () => Promise<boolean>;
 
   savedSystemPrompts: SystemPromptRecord[];
   selectedSystemPromptId: string | null;
@@ -128,6 +129,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   customModels,
   onAddCustomModel,
   onRemoveCustomModel,
+  onTestConnection,
   savedSystemPrompts,
   selectedSystemPromptId,
   onSaveNewSystemPrompt,
@@ -143,6 +145,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   const [showAddModelModal, setShowAddModelModal] = useState(false);
   const [newModelId, setNewModelId] = useState('');
   const [newModelName, setNewModelName] = useState('');
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
 
   useEffect(() => {
     setEditableProviderUrl(providerUrl);
@@ -169,6 +172,22 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
     setShowAddModelModal(false);
     setNewModelId('');
     setNewModelName('');
+  };
+
+  const handleTestConnection = async () => {
+    setIsTestingConnection(true);
+    try {
+      const success = await onTestConnection();
+      if (success) {
+        alert('Connection test successful!');
+      } else {
+        alert('Connection test failed. Please check your settings.');
+      }
+    } catch (error) {
+      alert(`Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsTestingConnection(false);
+    }
   };
 
   const handleSaveNewPromptClick = () => {
@@ -301,6 +320,57 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                     >
                       <Save size={18} />
                     </button>
+                  </div>
+
+                  {/* Test Connection Button */}
+                  <div className="mt-2">
+                    <button
+                      onClick={handleTestConnection}
+                      disabled={isServerSectionDisabled || isTestingConnection || !editableProviderApiKey.trim()}
+                      title="Test API Connection"
+                      className="w-full p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center text-xs"
+                    >
+                      {isTestingConnection ? (
+                        <>
+                          <Loader2 size={14} className="animate-spin mr-1" />
+                          Testing...
+                        </>
+                      ) : (
+                        'Test Connection'
+                      )}
+                    </button>
+                  </div>
+                  
+                  {/* Provider-specific help text */}
+                  <div className="mt-2 p-2 bg-gray-800 rounded text-xs text-gray-400">
+                    {providerType === PROVIDERS.OPENAI && (
+                      <div>
+                        <div className="font-medium text-gray-300 mb-1">OpenAI Setup:</div>
+                        <div>• Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener" className="text-sky-400 hover:text-sky-300">platform.openai.com/api-keys</a></div>
+                        <div>• Format: sk-...</div>
+                      </div>
+                    )}
+                    {providerType === PROVIDERS.GEMINI && (
+                      <div>
+                        <div className="font-medium text-gray-300 mb-1">Google Gemini Setup:</div>
+                        <div>• Get your API key from <a href="https://ai.google.dev/" target="_blank" rel="noopener" className="text-sky-400 hover:text-sky-300">Google AI Studio</a></div>
+                        <div>• Uses OpenAI-compatible format with Bearer authentication</div>
+                      </div>
+                    )}
+                    {providerType === PROVIDERS.ANTHROPIC && (
+                      <div>
+                        <div className="font-medium text-gray-300 mb-1">Anthropic Setup:</div>
+                        <div>• Get your API key from <a href="https://console.anthropic.com/" target="_blank" rel="noopener" className="text-sky-400 hover:text-sky-300">console.anthropic.com</a></div>
+                        <div>• Format: sk-ant-...</div>
+                      </div>
+                    )}
+                    {providerType === PROVIDERS.CUSTOM && (
+                      <div>
+                        <div className="font-medium text-gray-300 mb-1">Custom Provider:</div>
+                        <div>• Contact your provider for API key format</div>
+                        <div>• Most use Bearer token authentication</div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

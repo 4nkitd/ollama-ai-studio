@@ -191,9 +191,11 @@ const App = (): JSX.Element => {
       
       if (type === PROVIDERS.GEMINI) {
         defaultModels = [
+          { id: 'gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro (Latest)', provider: type },
           { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: type },
+          { id: 'gemini-1.5-flash-latest', name: 'Gemini 1.5 Flash (Latest)', provider: type },
           { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: type },
-          { id: 'gemini-pro', name: 'Gemini Pro', provider: type },
+          { id: 'gemini-pro', name: 'Gemini Pro (Legacy)', provider: type },
         ];
       } else if (type === PROVIDERS.ANTHROPIC) {
         defaultModels = [
@@ -517,6 +519,64 @@ const App = (): JSX.Element => {
     });
   }, []);
 
+  const handleTestConnection = useCallback(async (): Promise<boolean> => {
+    if (!isMounted.current) return false;
+    
+    try {
+      const config = PROVIDER_CONFIGS[providerState.type as keyof typeof PROVIDER_CONFIGS];
+      
+      // Check if API key is required but missing
+      if (config.requiresApiKey && !providerState.apiKey.trim()) {
+        throw new Error(`API key is required for ${config.name}`);
+      }
+
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      
+      // Set up authentication headers
+      if (providerState.apiKey) {
+        if (providerState.type === PROVIDERS.ANTHROPIC) {
+          headers['x-api-key'] = providerState.apiKey;
+          headers['anthropic-version'] = '2023-06-01';
+        } else {
+          headers['Authorization'] = `Bearer ${providerState.apiKey}`;
+        }
+      }
+
+      // Try to make a simple test request
+      let testEndpoint = '';
+      let testBody = {};
+
+      if (providerState.type === PROVIDERS.OLLAMA) {
+        testEndpoint = `${providerState.url.replace(/\/+$/, '')}/api/tags`;
+        const response = await fetch(testEndpoint, { 
+          headers,
+          signal: AbortSignal.timeout(10000)
+        });
+        return response.ok;
+      } else {
+        // For OpenAI-compatible providers, try a simple chat completion
+        testEndpoint = `${providerState.url.replace(/\/+$/, '')}${config.apiPath}`;
+        testBody = {
+          model: providerState.models[0]?.id || 'gpt-3.5-turbo',
+          messages: [{ role: 'user', content: 'Hi' }],
+          max_tokens: 1
+        };
+        
+        const response = await fetch(testEndpoint, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(testBody),
+          signal: AbortSignal.timeout(10000)
+        });
+        
+        return response.ok;
+      }
+    } catch (error) {
+      console.error('Connection test failed:', error);
+      return false;
+    }
+  }, [providerState.type, providerState.url, providerState.apiKey, providerState.models]);
+
   useEffect(() => {
     if (currentConversationId && isMounted.current) {
       const activeConversation = conversationsList.find(c => c.id === currentConversationId);
@@ -633,6 +693,13 @@ const App = (): JSX.Element => {
     
     // If online, proceed with normal sending logic
     const currentProviderConfig = PROVIDER_CONFIGS[providerState.type as keyof typeof PROVIDER_CONFIGS];
+    
+    // Check if API key is required but missing
+    if (currentProviderConfig.requiresApiKey && !providerState.apiKey.trim()) {
+      alert(`API key is required for ${currentProviderConfig.name}. Please enter your API key in the settings.`);
+      return;
+    }
+    
     if (providerState.status !== 'connected' || (currentProviderConfig.supportsModelsEndpoint && providerState.models.length === 0)) {
       if (providerState.status !== 'connected') {
         alert(`${currentProviderConfig.name} server is not connected. Please check settings.`);
@@ -1276,6 +1343,7 @@ const App = (): JSX.Element => {
         customModels={providerState.customModels}
         onAddCustomModel={handleAddCustomModel}
         onRemoveCustomModel={handleRemoveCustomModel}
+        onTestConnection={handleTestConnection}
         savedSystemPrompts={savedSystemPrompts}
         selectedSystemPromptId={selectedSystemPromptId}
         onSaveNewSystemPrompt={handleSaveNewSystemPrompt}

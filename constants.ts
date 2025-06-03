@@ -40,8 +40,8 @@ export const PROVIDER_CONFIGS = {
     modelsEndpoint: '/models'
   },
   [PROVIDERS.GEMINI]: {
-    name: 'Gemini (OpenAI Compatible)',
-    defaultUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    name: 'Google Gemini (OpenAI Compatible)',
+    defaultUrl: 'https://generativelanguage.googleapis.com/v1beta',
     apiPath: '/chat/completions',
     requiresApiKey: true,
     supportsModelsEndpoint: false,
