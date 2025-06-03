@@ -844,6 +844,7 @@ const App = (): JSX.Element => {
 
     // For processing <think> tags
     let currentVisibleContent = ""; 
+    let currentThinkingContent = "";
     let inThinkBlock = false; 
 
     let finalTokenData = { prompt: 0, completion: 0, total: 0 };
@@ -885,12 +886,37 @@ const App = (): JSX.Element => {
         if (done) break;
 
         const chunkText = decoder.decode(value, { stream: true });
-        const jsonResponses = chunkText.split('\n').filter(line => line.trim() !== '');
+        const lines = chunkText.split('\n').filter(line => line.trim() !== '');
 
-        for (const jsonResponse of jsonResponses) {
+        for (const line of lines) {
           if (!isMounted.current || abortControllerRef.current?.signal.aborted) { if(reader && !reader.closed) reader.cancel("Component unmounted or aborted mid-chunk").catch(()=>{/* ignore */}); break; }
+          
+          // Handle SSE format - lines start with "data: "
+          if (!line.startsWith('data: ')) continue;
+          
+          const jsonData = line.slice(6); // Remove "data: " prefix
+          
+          // Handle the [DONE] signal
+          if (jsonData === '[DONE]') {
+            // Stream is complete - finalize the message
+            if (isMounted.current) {
+              setMessages(prevMessages =>
+                prevMessages.map(msg =>
+                  msg.id === assistantMessageId ? { 
+                    ...msg, 
+                    isThinking: false, 
+                    isLoading: false,
+                    tokens: finalTokenData,
+                    thinkingContent: currentThinkingContent
+} : msg
+                )
+              );
+            }
+            break;
+          }
+          
           try {
-            const streamPart = JSON.parse(jsonResponse);
+            const streamPart = JSON.parse(jsonData);
             let chunkContent = "";
             let isDone = false;
             let streamPromptTokens: number | undefined = undefined;
@@ -915,8 +941,6 @@ const App = (): JSX.Element => {
                 streamPromptTokens = openAIStreamPart.usage.prompt_tokens;
                 streamCompletionTokens = openAIStreamPart.usage.completion_tokens;
                 streamTotalTokens = openAIStreamPart.usage.total_tokens;
-              } else if (isDone && !openAIStreamPart.usage && openAIStreamPart.choices?.[0]?.finish_reason === 'length') {
-                // If finish reason is length, but no usage, tokens might be estimated or handled later
               }
             }
             
@@ -927,16 +951,24 @@ const App = (): JSX.Element => {
                   if (inThinkBlock) {
                       const thinkEndIndex = chunkContent.indexOf("</think>");
                       if (thinkEndIndex !== -1) {
+                          // Capture the remaining thinking content before the closing tag
+                          currentThinkingContent += chunkContent.substring(0, thinkEndIndex);
                           chunkContent = chunkContent.substring(thinkEndIndex + "</think>".length);
                           inThinkBlock = false;
                           if (isMounted.current) {
                               setMessages(prevMessages =>
                                   prevMessages.map(msg =>
-                                      msg.id === assistantMessageId ? { ...msg, isThinking: false } : msg
+                                      msg.id === assistantMessageId ? { 
+                                          ...msg, 
+                                          isThinking: false,
+                                          thinkingContent: currentThinkingContent
+                                      } : msg
                                   )
                               );
                           }
                       } else {
+                          // Still in thinking block, capture all content
+                          currentThinkingContent += chunkContent;
                           chunkContent = ""; 
                       }
                   } else { // Not in a think block
@@ -948,7 +980,11 @@ const App = (): JSX.Element => {
                           if (isMounted.current) {
                               setMessages(prevMessages =>
                                   prevMessages.map(msg =>
-                                      msg.id === assistantMessageId ? { ...msg, isThinking: true } : msg
+                                      msg.id === assistantMessageId ? { 
+                                          ...msg, 
+                                          isThinking: true,
+                                          thinkingContent: currentThinkingContent
+                                      } : msg
                                   )
                               );
                           }
@@ -969,7 +1005,8 @@ const App = (): JSX.Element => {
                     msg.id === assistantMessageId ? { 
                         ...msg, 
                         content: currentVisibleContent,
-                        isLoading: true 
+                        isLoading: true,
+                        thinkingContent: currentThinkingContent
                         // isThinking is updated above
                     } : msg
                   )
@@ -977,20 +1014,25 @@ const App = (): JSX.Element => {
               }
             }
 
-            if (streamPart.done) {
+            if (isDone || (providerState.type === PROVIDERS.OLLAMA && streamPart.done)) {
               // Use tokens from stream if available, otherwise simulate
               const promptTokens = streamPromptTokens ?? simulateUserMessageTokens(activeSystemPrompt) + simulateUserMessageTokens(userInput);
-              const completionTokens = streamCompletionTokens ?? 0; // This will be updated as assistant generates
+              const completionTokens = streamCompletionTokens ?? simulateUserMessageTokens(currentVisibleContent);
               finalTokenData = {
                 prompt: promptTokens,
-                completion: completionTokens, // This will be updated by the stream completion logic below
+                completion: completionTokens,
                 total: streamTotalTokens ?? (promptTokens + completionTokens),
               };
               // Ensure isThinking is false on completion
               if (isMounted.current) {
                 setMessages(prevMessages =>
                     prevMessages.map(msg =>
-                        msg.id === assistantMessageId ? { ...msg, isThinking: false, isLoading: false } : msg
+                        msg.id === assistantMessageId ? { 
+                            ...msg, 
+                            isThinking: false, 
+                            isLoading: false,
+                            thinkingContent: currentThinkingContent
+                        } : msg
                     )
                 );
               }
@@ -1004,7 +1046,7 @@ const App = (): JSX.Element => {
               }
             }
           } catch (e) {
-            console.error("Error parsing stream chunk:", e, "Chunk:", jsonResponse);
+            console.error("Error parsing stream chunk:", e, "Chunk:", line);
           }
         }
          if ((!isMounted.current || abortControllerRef.current?.signal.aborted) && reader && !reader.closed) { reader.cancel("Component unmounted or aborted post-chunk").catch(()=>{/* ignore */}); break; }

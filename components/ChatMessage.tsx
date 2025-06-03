@@ -1,8 +1,8 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Message } from '../types';
 import ResponseDisplay from './ResponseDisplay';
-import { User, Bot, Cpu, BarChart3, Brain } from 'lucide-react'; // Added Brain for thinking
+import { User, Bot, Cpu, BarChart3, Brain, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface ChatMessageProps {
   message: Message;
@@ -10,6 +10,7 @@ interface ChatMessageProps {
 
 const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   const isUser = message.role === 'user';
+  const [showThinking, setShowThinking] = useState(false);
 
   const formatTimestamp = (date: Date): string => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -37,7 +38,35 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
         {isUser ? (
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
         ) : (
-          <ResponseDisplay content={message.content} isLoading={message.isLoading || false} />
+          <>
+            {/* Thinking indicator */}
+            {message.isThinking && (
+              <div 
+                className="flex items-center mb-2 p-2 bg-gray-600 rounded cursor-pointer hover:bg-gray-500 transition-colors"
+                onClick={() => setShowThinking(!showThinking)}
+              >
+                <Brain size={16} className="mr-2 text-purple-400 animate-pulse" />
+                <span className="text-sm text-purple-300">Assistant is thinking...</span>
+                {showThinking ? (
+                  <ChevronUp size={16} className="ml-auto text-gray-400" />
+                ) : (
+                  <ChevronDown size={16} className="ml-auto text-gray-400" />
+                )}
+              </div>
+            )}
+
+            {/* Thinking content (expandable) */}
+            {showThinking && message.isThinking && (
+              <div className="mb-2 p-2 bg-gray-800 rounded border-l-4 border-purple-400">
+                <div className="text-xs text-purple-300 mb-1">Thinking Process:</div>
+                <div className="text-sm text-gray-300 italic">
+                  The assistant is processing your request and considering the best response...
+                </div>
+              </div>
+            )}
+
+            <ResponseDisplay content={message.content} isLoading={message.isLoading || false} />
+          </>
         )}
 
         <div className="text-xs mt-2 flex items-center justify-end space-x-3 opacity-70 group-hover:opacity-100 transition-opacity">
