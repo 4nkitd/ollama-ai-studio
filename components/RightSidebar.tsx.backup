@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { OllamaParameters, AIModel, SystemPromptRecord, ProviderType } from '../types';
-import { SlidersHorizontal, Settings2, FileDown, Server, AlertTriangle, CheckCircle, Loader2, Save, Trash2, Edit3, Check, X, ChevronDown, ChevronUp, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { SlidersHorizontal, Settings2, FileDown, Server, AlertTriangle, CheckCircle, Loader2, Save, Trash2, Edit3, Check, X, ChevronDown, ChevronUp, Info, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { DEFAULT_SYSTEM_PROMPT, PROVIDER_CONFIGS } from '../constants';
 
 interface RightSidebarProps {
@@ -44,7 +44,7 @@ interface RightSidebarProps {
 
 const AccordionSection: React.FC<{
   title: string;
-  icon: React.ComponentType<any>;
+  icon: React.ComponentType<{ size: number }>;
   defaultOpen?: boolean;
   isSidebarOpen: boolean;
   children: React.ReactNode;
@@ -58,11 +58,11 @@ const AccordionSection: React.FC<{
         className={`w-full flex items-center justify-between p-3 text-left hover:bg-gray-800 transition-colors ${!isSidebarOpen ? 'justify-center' : ''}`}
       >
         <div className="flex items-center">
-          <Icon size={16} />
+          <Icon size={16} className="text-sky-400" />
           {isSidebarOpen && <span className="ml-2 text-sm font-medium text-gray-200">{title}</span>}
         </div>
         {isSidebarOpen && (
-          isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />
+          isOpen ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />
         )}
       </button>
       {isOpen && isSidebarOpen && (
@@ -559,5 +559,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
     </div>
   );
 };
+
+export default RightSidebar;
 
 export default RightSidebar;

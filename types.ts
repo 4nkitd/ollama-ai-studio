@@ -1,8 +1,13 @@
+import { ProviderType } from './constants';
+
+export type { ProviderType };
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   model?: string; // For assistant messages, which model generated it
+  provider?: ProviderType; // Which provider generated this message
   tokens?: {
     prompt: number;
     completion: number;
@@ -20,6 +25,19 @@ export interface OllamaParameters {
   // Add other Ollama options here if needed, e.g., top_k, seed
 }
 
+// Ollama API options type (what the API actually expects)
+export interface OllamaApiOptions {
+  temperature?: number;
+  top_p?: number;
+  num_predict?: number;
+  top_k?: number;
+  seed?: number;
+  stop?: string[];
+  repeat_penalty?: number;
+  presence_penalty?: number;
+  frequency_penalty?: number;
+}
+
 export interface Conversation {
   id: string; // uuidv4
   title: string;
@@ -27,6 +45,8 @@ export interface Conversation {
   updatedAt: Date;
   systemPrompt: string; // Stores the actual system prompt text used for this conversation
   selectedModel: string | null;
+  providerType: ProviderType; // Which provider this conversation uses
+  providerUrl: string; // The API URL for this conversation
   parameters: OllamaParameters;
   totalTokenCount?: number; // Added to store cumulative token count
 }
@@ -110,4 +130,94 @@ export interface SystemPromptRecord {
   prompt: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// Provider Configuration
+export interface ProviderConfig {
+  name: string;
+  defaultUrl: string;
+  apiPath: string;
+  requiresApiKey: boolean;
+  supportsModelsEndpoint: boolean;
+  modelsEndpoint: string;
+}
+
+// OpenAI-Compatible API Types
+export interface OpenAIMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+export interface OpenAIChatRequest {
+  model: string;
+  messages: OpenAIMessage[];
+  temperature?: number;
+  top_p?: number;
+  max_tokens?: number;
+  stream?: boolean;
+  stop?: string | string[];
+}
+
+export interface OpenAIUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
+export interface OpenAIChoice {
+  index: number;
+  message?: OpenAIMessage;
+  delta?: Partial<OpenAIMessage>;
+  finish_reason?: string | null;
+}
+
+export interface OpenAIChatResponse {
+  id: string;
+  object: string;
+  created: number;
+  model: string;
+  choices: OpenAIChoice[];
+  usage?: OpenAIUsage;
+}
+
+// Generic Model Interface (works for both Ollama and OpenAI-compatible)
+export interface AIModel {
+  id: string;
+  name: string;
+  provider: ProviderType;
+  created?: number;
+  owned_by?: string;
+  isCustom?: boolean; // Flag to indicate user-added custom models
+  // Ollama-specific fields (optional)
+  model?: string;
+  modified_at?: string;
+  size?: number;
+  digest?: string;
+  details?: OllamaApiTagDetails;
+}
+
+// Custom Model Interface for user-added models
+export interface CustomModel {
+  id: string;
+  name: string;
+  provider: ProviderType;
+  addedAt: Date;
+  description?: string;
+}
+
+// Storage format for custom models (organized by provider)
+export interface CustomModelsByProvider {
+  [key: string]: CustomModel[]; // key is ProviderType
+}
+
+// Provider State Interface
+export interface ProviderState {
+  type: ProviderType;
+  url: string;
+  apiKey: string;
+  models: AIModel[];
+  customModels: AIModel[];
+  status: 'idle' | 'connecting' | 'connected' | 'error';
+  error: string | null;
+  isFetchingModels: boolean;
 }
